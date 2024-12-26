@@ -1,0 +1,4 @@
+streamlit
+growattServer
+plotly
+python-dotenv
