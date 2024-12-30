@@ -162,7 +162,7 @@ def get_storage_info_df(plant_map: dict) -> list[pd.DataFrame]:
                 p_charge = storage.get("pCharge", 0)
                 df = pd.DataFrame(
                     {
-                        f"Speicher {storage_idx}": ["Kapazität", "Ladeleistung"],
+                        f"Speicher {storage_idx}": ["Kapazität", "Ladeleistung [W]"],
                         "Wert": [capacity, p_charge],
                     }
                 )
