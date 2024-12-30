@@ -1,89 +1,60 @@
-# %%
-import growattServer
 import pandas as pd
 import plotly.express as px
 import streamlit as st
-from dotenv import load_dotenv
-import os
+import utils
+import datetime
 
-load_dotenv()
+# Mock data for the tables
+data_left_row1 = {"Column 1": ["Row 1", "Row 2"], "Column 2": ["A", "B"]}
+data_left_row2 = {"Column 1": ["Row 1", "Row 2"], "Column 2": ["C", "D"]}
 
-api = growattServer.GrowattApi(False, "something")
-login_response = api.login(
-    os.getenv("GROWATT_USER"), os.getenv("GROWATT_PASSWORD"), False
+plant_map = utils.get_plant_id_map()
+
+# Create dataframes
+df_left_row1 = pd.DataFrame(data_left_row1)
+df_left_row2 = pd.DataFrame(data_left_row2)
+df = utils.get_current_total_sysOut(plant_map)
+df_right_row2 = pd.DataFrame(df.set_index(df.columns[0]))
+
+# Sidebar with a refresh button
+# if st.sidebar.button("Refresh App"):
+#     st.experimental_rerun()
+
+# Create two columns
+col1, col2 = st.columns(2)
+
+# First row: Tables in both columns
+with col1:
+    st.write("Übersicht")
+    df = utils.get_overview_dataframe()
+    st.table(df.set_index(df.columns[0]))
+
+with col2:
+    st.write("Wechselrichter (aktuell)")
+    df = utils.get_current_plant_powers(plant_map)
+    st.table(df.set_index(df.columns[0]))
+
+
+# Second row: Tables in both columns
+storage_dfs = utils.get_storage_info_df(plant_map)
+with col1:
+    st.write("Speichersysteme:")
+    for idx, df in enumerate(storage_dfs):
+        st.write(f"Sepeicher {idx + 1}")
+        st.table(df.set_index(df.columns[0]))
+with col2:
+    st.write("Stromnetz:")
+    st.table(df_right_row2)
+
+# Footer with the current datetime
+st.markdown(
+    """
+    <hr style="margin-top: 50px; margin-bottom: 10px;">
+    <div style="text-align: center; font-size: 12px; color: gray;">
+        Last updated: {current_time}
+    </div>
+    """.format(
+        current_time=datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    ),
+    unsafe_allow_html=True,
 )
-
-r = api.plant_list(login_response["user"]["id"])
-
-
-# Function to convert dict to DataFrame
-def dict_to_dataframe(datastream):
-    df = pd.DataFrame.from_dict(datastream, orient="index")
-    df.index.name = "Time"
-    df.reset_index(inplace=True)
-    return df
-
-
-def get_last_values(dataframe, name):
-
-    last_row = dataframe.iloc[-1]
-    return {
-        "Datastream": name,
-        "Timestamp": last_row["Time"],
-        **last_row.drop("Time").to_dict(),
-    }
-
-
-data_map = dict()
-summary_data = list()
-for plant_data in r.get("data"):
-    plant_name = plant_data.get("plantName")
-    plant_id = plant_data.get("plantId")
-
-    r = api.dashboard_data(plant_id, timespan=growattServer.Timespan["hour"])
-    chart_data = dict_to_dataframe(r.get("chartData"))
-    data_map[plant_name] = chart_data
-
-    if not chart_data.empty:
-        summary_data.append(get_last_values(chart_data, plant_name))
-
-
-summary_df = pd.DataFrame(summary_data)
-
-# Streamlit App
-st.title("Inverter Visualization")
-
-# Display summary table
-st.subheader("Latest Values from All Datastreams")
-st.dataframe(summary_df)
-
-
-# Sidebar for selecting datastream
-option = st.sidebar.selectbox(
-    "Select a inverter to visualize:",
-    [x for x in data_map.keys()],
-)
-
-# Display data and interactive chart
-selected_data = data_map[option]
-st.subheader(option)
-st.dataframe(selected_data)
-
-# Interactive Plotly Line Chart
-fig = px.line(
-    selected_data,
-    x="Time",
-    y=["pacToUser", "ppv", "sysOut", "userLoad"],
-    labels={"value": "Value", "variable": "Metric"},
-    title=f"{option} - Metrics Over Time",
-)
-
-# Update layout for better readability
-fig.update_layout(
-    xaxis_title="Time",
-    yaxis_title="Values",
-    legend_title="Metrics",
-    template="plotly_dark",
-)
-
-st.plotly_chart(fig)
